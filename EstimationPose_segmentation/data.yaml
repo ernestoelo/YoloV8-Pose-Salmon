@@ -1,0 +1,15 @@
+# data.yaml
+path:  C:/Users/Alonso/salmo_metrics/data
+train: C:/Users/Alonso/salmo_metrics/data/images/train
+val: C:/Users/Alonso/salmo_metrics/data/images/val
+
+# Dataset COCO keypoints
+pose: true
+kpt_shape: [11, 2]  # 11 keypoints (x,y)
+
+# Anotaciones COCO exportadas desde CVAT
+train_annotations: C:/Users/Alonso/salmo_metrics/data/annotations/train.json
+val_annotations: C:/Users/Alonso/salmo_metrics/data/annotations/val.json
+
+names:
+  0: salmon
