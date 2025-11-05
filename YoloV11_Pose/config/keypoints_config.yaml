@@ -1,33 +1,41 @@
+# Contenido para: configs/keypoints_config.yaml
+# IMPORTANTE: Este archivo DEBE reflejar el orden exacto de las sublabels definidas en CVAT.
+
 keypoints:
   num_keypoints: 11
   
+  # Nombres de los keypoints en el orden de exportación de CVAT.
   names:
-    - "Hocico"
-    - "Ojo"
-    - "Opérculo"
-    - "Inicio_Aleta_Dorsal"
-    - "Fin_Aleta_Dorsal"
-    - "Inicio_Aleta_Anal"
-    - "Fin_Aleta_Anal"
-    - "Aleta_Pectoral"
-    - "Pedúnculo_Caudal"
-    - "Horquilla_Superior"
-    - "Horquilla_Inferior"
-  
+    - "Head"
+    - "Lateral"
+    - "Tail"
+    - "Eye"
+    - "Dorsal_fin"
+    - "Pelvic_fin"
+    - "Adipose_fin"
+    - "Anal_fin"
+    - "Caudal_fin_up"
+    - "Caudal_fin_down"
+    - "Dorsal_joint"
+
+  # Sigmas para el cálculo de OKS. Deben estar en el MISMO orden que 'names'.
+  # Estos valores son estimaciones y se pueden ajustar. 
+  # He asignado valores más bajos a puntos precisos (Eye) y más altos a zonas más variables (fins).
   oks_sigmas:
-    - 0.025
-    - 0.030
-    - 0.050
-    - 0.070
-    - 0.080
-    - 0.060
-    - 0.070
-    - 0.050
-    - 0.080
-    - 0.060
-    - 0.060
+    - 0.070  # Head
+    - 0.080  # Lateral (punto en el cuerpo, puede tener más varianza)
+    - 0.075  # Tail
+    - 0.035  # Eye (punto muy preciso)
+    - 0.100  # Dorsal_fin
+    - 0.100  # Pelvic_fin
+    - 0.090  # Adipose_fin
+    - 0.100  # Anal_fin
+    - 0.085  # Caudal_fin_up
+    - 0.085  # Caudal_fin_down
+    - 0.090  # Dorsal_joint
 
 validation:
   custom_metrics:
     pck_thresholds: [0.1, 0.2, 0.3]
     oks_thresholds: [0.5, 0.75, 0.9]
+
