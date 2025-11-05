@@ -17,7 +17,7 @@ El diseño se fundamenta en principios de **modularidad, configuración externa 
 La organización del repositorio separa claramente la lógica del núcleo (`src`), la configuración (`configs`), los datos procesados (`data`) y los scripts de ejecución (`scripts`).
 
 ```
-salmon_pose_estimation/
+YoloV8_Pose_Fine_Tuning/
 ├── configs/                # Archivos de configuración (hiperparámetros, keypoints)
 ├── data/                   # Dataset procesado y estructurado para YOLO (generado)
 ├── notebooks/              # Jupyter Notebooks para exploración y análisis
