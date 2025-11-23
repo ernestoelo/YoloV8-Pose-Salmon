@@ -130,6 +130,12 @@ class ModelDownloader:
             # Ultralytics descarga automáticamente
             YOLO(model_name)
 
+            # Mover al directorio de caché si se descargó en el directorio actual
+            local_file = Path(model_name)
+            if local_file.exists() and local_file != model_path:
+                import shutil
+                shutil.move(str(local_file), str(model_path))
+
             if verbose:
                 size_mb = model_path.stat().st_size / 1e6
                 print(f"\n✅ Descarga completada!")

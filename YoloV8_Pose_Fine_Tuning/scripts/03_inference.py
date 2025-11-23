@@ -31,43 +31,54 @@ def main():
     print("="*80)
 
     try:
-        # 1️⃣ Descargar modelo base si es necesario
-        print("\n1️⃣  Verificando Modelo Base...")
-        ModelDownloader.download_model('yolov8s-pose.pt', verbose=False)
-
-        # 2️⃣ Cargar modelo entrenado
-        print("\n2️⃣  Cargando Modelo...")
+        # 1️⃣ Cargar modelo entrenado
+        print("\n1️⃣  Cargando Modelo...")
         if not Path(args.model).exists():
             print(f"❌ Modelo no encontrado: {args.model}")
+            print("   Asegúrese de haber entrenado el modelo o especifique la ruta correcta con --model")
             return
 
         model = YOLO(args.model)
         print(f"   ✅ Modelo cargado: {args.model}")
 
-        # 3️⃣ Cargar imagen
-        print("\n3️⃣  Cargando Imagen...")
+        # 2️⃣ Cargar imagen
+        print("\n2️⃣  Cargando Imagen...")
+        # Verificar si la imagen existe antes de intentar leerla con cv2
+        if not Path(args.image).exists():
+             print(f"❌ Archivo de imagen no encontrado: {args.image}")
+             return
+
         image = cv2.imread(args.image)
 
         if image is None:
-            print(f"❌ No se pudo cargar: {args.image}")
+            print(f"❌ No se pudo leer la imagen (formato inválido o corrupto): {args.image}")
             return
 
         print(f"   ✅ Imagen cargada: {args.image}")
 
-        # 4️⃣ Inferencia
-        print("\n4️⃣  Realizando Inferencia...")
+        # 3️⃣ Inferencia
+        print("\n3️⃣  Realizando Inferencia...")
+        # plot=True en model() no retorna la imagen anotada directamente, 
+        # hay que llamar a result.plot() después.
         results = model(image, conf=args.conf)
 
-        # 5️⃣ Procesar resultados
-        for result in results:
-            if len(result.boxes) > 0:
-                print(f"   ✅ Detecciones: {len(result.boxes)}")
-            else:
-                print(f"   ℹ️  No se encontraron salmones")
+        # 4️⃣ Procesar resultados
+        # results es una lista (un resultado por imagen de entrada)
+        result = results[0] 
+        
+        if len(result.boxes) > 0:
+            print(f"   ✅ Detecciones: {len(result.boxes)} salmón(es)")
+            # Opcional: Mostrar confianza promedio
+            confs = result.boxes.conf.cpu().numpy()
+            print(f"      Confianza promedio: {confs.mean():.2f}")
+        else:
+            print(f"   ℹ️  No se encontraron salmones con confianza > {args.conf}")
 
-        # 6️⃣ Guardar resultado
-        print("\n5️⃣  Guardando Resultado...")
-        annotated_image = results.plot()
+        # 5️⃣ Guardar resultado
+        print("\n4️⃣  Guardando Resultado...")
+        # result.plot() genera la imagen con las cajas y keypoints dibujados
+        annotated_image = result.plot()
+        
         output_path = Path(args.output)
         output_path.parent.mkdir(parents=True, exist_ok=True)
         cv2.imwrite(str(output_path), annotated_image)
@@ -75,7 +86,7 @@ def main():
         print("\n" + "="*80)
         print("✅ INFERENCIA COMPLETADA")
         print("="*80)
-        print(f"\n💾 Resultado: {output_path}")
+        print(f"\n💾 Resultado guardado en: {output_path.absolute()}")
 
     except Exception as e:
         print(f"\n❌ Error: {e}")

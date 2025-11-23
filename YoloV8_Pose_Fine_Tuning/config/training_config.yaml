@@ -116,45 +116,6 @@ augmentation:
     # Aplicacion: Simula la variabilidad de iluminación submarina.
     # Causas: movimiento del agua, reflejos de la superficie, fuentes de luz artificial.
     # Original: 0.4 → Se mantiene. Buen equilibrio.
-  
-  # --- TRANSFORMACIONES DE RUIDO (ESPECÍFICAS PARA VIDEO SUBMARINO) ---
-  # Los sensores de cámara subacuática tienen características de ruido especiales.
-  
-  noise: 0.02
-    # Ruido gaussiano añadido a la imagen.
-    # Rango: 0 a noise (gaussiano σ=noise).
-    # Aplicacion: Video submarino típicamente tiene más ruido que video de tierra.
-    # Causas: sensores marinos, compresión de video, low-light conditions.
-    # Valor 0.02 = 2% de ruido. Realista para cámaras submarinas.
-    # NUEVO: Agregado específicamente para ambiente submarino.
-  
-  # --- TRANSFORMACIONES DE CONTRASTE Y BRILLO (PARA ILUMINACIÓN VARIABLE) ---
-  # El agua es un medio heterogéneo; la luz viene de múltiples direcciones y se dispersa.
-  
-  contrast: 0.5
-    # Factor de contraste multiplicativo: imagen * (1 ± contrast).
-    # Rango: entre [1-contrast, 1+contrast] = [0.5, 1.5].
-    # Aplicacion: Simula cambios en la iluminación y la turbidez.
-    # Agua clara vs. agua turbia producen diferencias de contraste significativas.
-    # NUEVO: Agregado para robustez ante cambios en visibilidad marina.
-  
-  brightness: 0.3
-    # Factor de brillo aditivo: imagen + brightness_delta.
-    # Rango: ±30% del rango dinámico.
-    # Aplicacion: Luz natural submarina varía drásticamente.
-    # Causas: hora del día, profundidad, proximidad a la superficie.
-    # Valor 0.3 = variación de ±30%. Realista.
-    # NUEVO: Crítico para robustez a cambios de iluminación.
-  
-  # --- TRANSFORMACIÓN DE DESENFOQUE (SIMULAR TURBIDEZ) ---
-  
-  blur: 0.5
-    # Factor de desenfoque gaussiano (sigma del kernel).
-    # Rango: 0 a blur.
-    # Aplicacion: Simula turbidez del agua y movimiento de cámara.
-    # Agua turbia = borrosidad. Agua clara = menos borrosidad.
-    # Valor 0.5 = desenfoque moderado. Realista para agua marina variable.
-    # NUEVO: Esencial para ambiente submarino donde la turbidez es variable.
 
 # ================================================================================
 # VALIDACIÓN
@@ -179,15 +140,9 @@ paths:
 #
 # 1. degrees: 0 → 15          (Permitir rotaciones naturales de peces)
 # 2. translate: 0.1 → 0.15    (Mayor variabilidad de posición)
-# 3. NUEVO: noise: 0.02       (Ruido realista de video submarino)
-# 4. NUEVO: contrast: 0.5     (Simular cambios de contraste por turbidez)
-# 5. NUEVO: brightness: 0.3   (Variabilidad de iluminación submarina)
-# 6. NUEVO: blur: 0.5         (Simular turbidez del agua)
 #
 # Estas técnicas permiten que el modelo sea robusto a:
 # - Variaciones naturales de iluminación submarina
-# - Turbidez variable del agua
-# - Ruido de sensores marinales
 # - Orientaciones naturales de peces
 #
 # ================================================================================

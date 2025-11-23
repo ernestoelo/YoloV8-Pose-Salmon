@@ -1,0 +1,14 @@
+[core]
+	repositoryformatversion = 0
+	filemode = true
+	bare = false
+	logallrefupdates = true
+[remote "origin"]
+	url = https://github.com/ernestoelo/YoloV8-Pose-Salmon.git
+	fetch = +refs/heads/*:refs/remotes/origin/*
+[branch "main"]
+	remote = origin
+	merge = refs/heads/main
+[remote "a10ns0"]
+	url = https://github.com/a10ns0/SalmonMetric.git
+	fetch = +refs/heads/*:refs/remotes/a10ns0/*

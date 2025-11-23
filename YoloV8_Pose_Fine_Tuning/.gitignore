@@ -1,0 +1,48 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+venv/
+env/
+ENV/
+.env
+.venv
+
+# IDE
+.vscode/
+.idea/
+
+# Project Specific
+# Ignoramos la carpeta data/ porque se genera automáticamente con el setup
+# y contiene rutas absolutas específicas de cada computador.
+data/
+
+# Ignoramos outputs de entrenamiento para no llenar el repo
+outputs/
+runs/
+
+# Ignoramos el modelo descargado (se descarga solo con el setup)
+*.pt
+
+# Mac
+.DS_Store
+client.ovpn

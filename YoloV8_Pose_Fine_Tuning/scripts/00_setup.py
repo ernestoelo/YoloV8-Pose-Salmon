@@ -41,7 +41,7 @@ def create_directories():
 def verify_configs():
     """Verifica que los archivos de configuración principales existan."""
     print("\n📋 Verificando archivos de configuración...")
-    required = ['configs/training_config.yaml', 'configs/keypoints_config.yaml']
+    required = ['config/training_config.yaml', 'config/keypoints_config.yaml']
     for config_file in required:
         if not Path(config_file).exists():
             print(f"   ❌ ERROR: El archivo de configuración '{config_file}' no fue encontrado.")
@@ -53,13 +53,60 @@ def verify_configs():
 
 def process_dataset(source_dir: Path, test_size: float):
     """
-    Procesa el dataset de origen: divide los datos y genera el archivo data.yaml.
+    Procesa el dataset de origen.
+    Detecta si ya existe una estructura train/val o si es un directorio plano.
     """
     print(f"\n📦 Procesando dataset desde: '{source_dir}'")
     
-    image_files = sorted([p for p in source_dir.glob('*.jpg')])
+    # Check for existing split structure (train/validation or train/val)
+    has_train = (source_dir / 'train').exists()
+    has_val = (source_dir / 'validation').exists() or (source_dir / 'val').exists()
+    
+    if has_train and has_val:
+        print("   ℹ️  Estructura 'train/validation' detectada. Usando splits existentes.")
+        process_existing_splits(source_dir)
+    else:
+        print("   ℹ️  Estructura plana detectada. Realizando división automática.")
+        process_flat_dataset(source_dir, test_size)
+
+    # 3. Generar data.yaml
+    create_data_yaml(
+        train_path='../data/images/train',
+        val_path='../data/images/val',
+        test_path='../data/images/test'
+    )
+    print("   - Archivo 'data/data.yaml' generado exitosamente.")
+    return True
+
+def process_existing_splits(source_dir: Path):
+    """Procesa un dataset que ya viene dividido en carpetas."""
+    # Determinar la carpeta de validación correcta
+    val_src = source_dir / 'validation' if (source_dir / 'validation').exists() else source_dir / 'val'
+    
+    splits = {
+        'train': source_dir / 'train',
+        'val': val_src
+    }
+    
+    for split_name, split_path in splits.items():
+        print(f"   - Procesando split '{split_name}' desde '{split_path}'...")
+        # Buscar imágenes recursivamente (para soportar subcarpetas como 'Train' o 'Validation')
+        images = []
+        for ext in ['*.png', '*.jpg', '*.jpeg']:
+            images.extend(list(split_path.rglob(ext)))
+            
+        print(f"     Encontradas {len(images)} imágenes en {split_name}.")
+        copy_files(images, split_name)
+
+def process_flat_dataset(source_dir: Path, test_size: float):
+    """Procesa un dataset plano, dividiéndolo automáticamente."""
+    image_files = []
+    for ext in ['*.png', '*.jpg', '*.jpeg']:
+        image_files.extend(list(source_dir.glob(ext)))
+    
+    image_files = sorted(image_files)
     if not image_files:
-        print("   ❌ ERROR: No se encontraron imágenes .jpg en el directorio de origen.")
+        print("   ❌ ERROR: No se encontraron imágenes (jpg/png/jpeg) en el directorio de origen.")
         return False
 
     print(f"   - {len(image_files)} imágenes encontradas.")
@@ -77,14 +124,23 @@ def process_dataset(source_dir: Path, test_size: float):
     copy_files(test_files, 'test')
     print("   - Archivos copiados a la estructura 'data/images' y 'data/labels'.")
 
-    # 3. Generar data.yaml
-    create_data_yaml(
-        train_path='../data/images/train',
-        val_path='../data/images/val',
-        test_path='../data/images/test'
-    )
-    print("   - Archivo 'data/data.yaml' generado exitosamente.")
-    return True
+def get_label_path(img_path: Path):
+    """Busca el archivo de etiqueta correspondiente a una imagen."""
+    # Estrategia 1: Misma carpeta
+    lbl = img_path.with_suffix('.txt')
+    if lbl.exists(): return lbl
+    
+    # Estrategia 2: Reemplazar 'images' por 'labels' en el path
+    # Maneja estructuras como: raw_data/train/images/Sub/img.png -> raw_data/train/labels/Sub/img.txt
+    parts = list(img_path.parts)
+    if 'images' in parts:
+        # Encontrar la última ocurrencia de 'images' por si acaso
+        idx = len(parts) - 1 - parts[::-1].index('images')
+        parts[idx] = 'labels'
+        lbl = Path(*parts).with_suffix('.txt')
+        if lbl.exists(): return lbl
+        
+    return None
 
 def copy_files(file_list: list[Path], split: str):
     """Copia imágenes y sus etiquetas a las carpetas de destino."""
@@ -92,15 +148,22 @@ def copy_files(file_list: list[Path], split: str):
     lbl_dest = Path(f'data/labels/{split}')
     
     for img_path in file_list:
-        lbl_path = img_path.with_suffix('.txt')
-        if lbl_path.exists():
+        lbl_path = get_label_path(img_path)
+        
+        if lbl_path and lbl_path.exists():
             shutil.copy(img_path, img_dest)
             shutil.copy(lbl_path, lbl_dest)
+        else:
+            # Opcional: Avisar si falta etiqueta
+            # print(f"⚠️ Aviso: No se encontró etiqueta para {img_path.name}")
+            pass
+
+
 
 def create_data_yaml(train_path: str, val_path: str, test_path: str):
     """Crea el archivo .yaml requerido por YOLOv8."""
     # Cargar los nombres de los keypoints desde el archivo de configuración
-    with open('configs/keypoints_config.yaml', 'r') as f:
+    with open('config/keypoints_config.yaml', 'r') as f:
         keypoints_data = yaml.safe_load(f)
     
     names = keypoints_data['keypoints']['names']
@@ -115,7 +178,7 @@ def create_data_yaml(train_path: str, val_path: str, test_path: str):
         'nc': 1, # Siempre 1 para la detección de la clase "salmón"
         'names': ['salmon'],
         'kpt_shape': kpt_shape,
-        'flip_idx': [names.index('Aleta_Pectoral')] # Ejemplo, ajustar si tienes keypoints simétricos
+        'flip_idx': [] # No usamos flip horizontal, así que lista vacía
     }
     
     with open('data/data.yaml', 'w') as f:

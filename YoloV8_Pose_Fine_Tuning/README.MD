@@ -43,13 +43,20 @@ YoloV8_Pose_Fine_Tuning/
 
 1. Clona este repositorio:
 
-   ```
-   gh repo clone a10ns0/SalmonMetric
-   cd YoloV8_Pose_Fine_Tuning
+   ```bash
+   git clone https://github.com/ernestoelo/YoloV8-Pose-Salmon.git
+   cd YoloV8-Pose-Salmon
    ```
 2. Crea un entorno virtual e instala las dependencias:
 
+   **Opción A: Usando Conda (Recomendado)**
+   ```bash
+   conda env create -f environment.yml
+   conda activate yolov8-salmon
    ```
+
+   **Opción B: Usando pip**
+   ```bash
    python -m venv venv
    source venv/bin/activate  # En Windows: venv\Scripts\activate
    pip install -r requirements.txt
@@ -69,9 +76,9 @@ Ejecuta el script desde la raíz del proyecto.
 
 **Para configurar el entorno Y procesar tu dataset:**
 
-```
-# Ejemplo: si tus datos están en una carpeta llamada 'mis_datos_anotados'
-python scripts/00_setup.py --source-dir mis_datos_anotados
+```bash
+# Ejemplo: si tus datos están en una carpeta llamada 'raw_data'
+python scripts/00_setup.py --source-dir raw_data
 ```
 
 **Para configurar SOLO el entorno (sin procesar datos):**

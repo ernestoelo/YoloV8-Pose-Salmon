@@ -72,12 +72,18 @@ class PoseEvaluator:
         """
         metrics = {}
         
+        # Asegurar que usamos solo (x, y) para las métricas, ignorando la confianza
+        # predictions['keypoints'] viene como [N, K, 3] (x, y, conf)
+        # ground_truth['keypoints'] viene como [N, K, 2] (x, y)
+        pred_xy = predictions['keypoints'][..., :2]
+        gt_xy = ground_truth['keypoints']
+        
         # --- 1. Calcular todas las métricas PCK ---
         for name, pck_metric in self.pck_metrics.items():
             # Calcula el PCK global (promedio de todos los keypoints) y el PCK por cada keypoint.
             pck_global, pck_per_kpt = pck_metric.compute(
-                predictions['keypoints'],
-                ground_truth['keypoints'],
+                pred_xy,
+                gt_xy,
                 predictions['bboxes']
             )
             # Guardar el PCK global (ej: 'pck@0.05': 0.85)
@@ -89,8 +95,8 @@ class PoseEvaluator:
         
         # --- 2. Calcular la métrica OKS ---
         oks_scores = self.oks_metric.compute_batch(
-            predictions['keypoints'],
-            ground_truth['keypoints'],
+            pred_xy,
+            gt_xy,
             predictions['bboxes'],
             ground_truth['visibilities']
         )
@@ -102,8 +108,8 @@ class PoseEvaluator:
         # Una detección se considera "válida" o "correcta" (True Positive) si su score OKS
         # supera un umbral comúnmente aceptado (en este caso, 0.5).
         valid_detections = (oks_scores > 0.5).sum()
-        total_predictions = len(predictions['keypoints'])
-        total_ground_truth = len(ground_truth['keypoints'])
+        total_predictions = len(pred_xy)
+        total_ground_truth = len(gt_xy)
         
         # Precisión: De todo lo que predije, ¿qué porcentaje fue correcto?
         metrics['precision'] = valid_detections / total_predictions if total_predictions > 0 else 0
