@@ -11,29 +11,40 @@ Funciones:
     conjuntos de entrenamiento, validación y prueba, y generando el 
     archivo 'data.yaml' necesario para YOLO.
 """
-import sys
-import argparse
-from pathlib import Path
-import shutil
-from sklearn.model_selection import train_test_split
-import yaml
+import sys  # Importa el módulo sys para manipular el path y salir del script
+import argparse  # Importa argparse para manejar argumentos de línea de comandos
+from pathlib import Path  # Importa Path para manejo robusto de rutas de archivos
+import shutil  # Importa shutil para operaciones de archivos como copiar
+from sklearn.model_selection import train_test_split  # Importa función para dividir datasets
+import yaml  # Importa yaml para leer y escribir archivos de configuración
 
 # Agregar src al path para poder importar los módulos del proyecto
+# Esto es necesario porque el script está en una subcarpeta 'scripts/'
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from src.utils.download_utils import ModelDownloader
-from src.models.yolo_wrapper import YOLOv8PoseTrainer
+# Importamos nuestras utilidades personalizadas
+from src.utils.download_utils import ModelDownloader  # Para descargar el modelo YOLO
+from src.models.yolo_wrapper import YOLOv8PoseTrainer  # Para verificar GPU
 
 # --- Funciones de Configuración del Entorno ---
 
 def create_directories():
     """Crea la estructura de directorios estándar del proyecto."""
     print("\n📁 Creando estructura de directorios...")
+    # Lista de directorios que necesitamos crear
     directories = [
-        'outputs/runs', 'outputs/checkpoints', 'outputs/metrics', 'outputs/visualizations',
-        'data/images/train', 'data/images/val', 'data/images/test',
-        'data/labels/train', 'data/labels/val', 'data/labels/test'
+        'outputs/runs',            # Donde YOLO guarda las corridas
+        'outputs/checkpoints',     # Donde guardaremos pesos intermedios
+        'outputs/metrics',         # Donde guardaremos CSVs de métricas
+        'outputs/visualizations',  # Para guardar gráficos
+        'data/images/train',       # Imágenes de entrenamiento
+        'data/images/val',         # Imágenes de validación
+        'data/images/test',        # Imágenes de prueba
+        'data/labels/train',       # Etiquetas de entrenamiento
+        'data/labels/val',         # Etiquetas de validación
+        'data/labels/test'         # Etiquetas de prueba
     ]
+    # Iteramos sobre la lista y creamos cada directorio si no existe
     for directory in directories:
         Path(directory).mkdir(parents=True, exist_ok=True)
     print("   ✅ Estructura de directorios creada/verificada.")
@@ -41,8 +52,10 @@ def create_directories():
 def verify_configs():
     """Verifica que los archivos de configuración principales existan."""
     print("\n📋 Verificando archivos de configuración...")
+    # Archivos YAML esenciales para que el proyecto funcione
     required = ['config/training_config.yaml', 'config/keypoints_config.yaml']
     for config_file in required:
+        # Si alguno no existe, detenemos el proceso
         if not Path(config_file).exists():
             print(f"   ❌ ERROR: El archivo de configuración '{config_file}' no fue encontrado.")
             return False
@@ -58,8 +71,9 @@ def process_dataset(source_dir: Path, test_size: float):
     """
     print(f"\n📦 Procesando dataset desde: '{source_dir}'")
     
-    # Check for existing split structure (train/validation or train/val)
+    # Verificamos si el usuario ya nos dio las carpetas separadas
     has_train = (source_dir / 'train').exists()
+    # Aceptamos 'validation' o 'val' como nombre
     has_val = (source_dir / 'validation').exists() or (source_dir / 'val').exists()
     
     if has_train and has_val:
@@ -70,6 +84,7 @@ def process_dataset(source_dir: Path, test_size: float):
         process_flat_dataset(source_dir, test_size)
 
     # 3. Generar data.yaml
+    # Este archivo le dice a YOLO dónde están las imágenes
     create_data_yaml(
         train_path='../data/images/train',
         val_path='../data/images/val',
@@ -80,9 +95,10 @@ def process_dataset(source_dir: Path, test_size: float):
 
 def process_existing_splits(source_dir: Path):
     """Procesa un dataset que ya viene dividido en carpetas."""
-    # Determinar la carpeta de validación correcta
+    # Determinar la carpeta de validación correcta (puede llamarse 'val' o 'validation')
     val_src = source_dir / 'validation' if (source_dir / 'validation').exists() else source_dir / 'val'
     
+    # Mapeo de nombres estándar a rutas reales
     splits = {
         'train': source_dir / 'train',
         'val': val_src
@@ -96,14 +112,17 @@ def process_existing_splits(source_dir: Path):
             images.extend(list(split_path.rglob(ext)))
             
         print(f"     Encontradas {len(images)} imágenes en {split_name}.")
+        # Copiamos las imágenes encontradas a nuestra estructura 'data/'
         copy_files(images, split_name)
 
 def process_flat_dataset(source_dir: Path, test_size: float):
     """Procesa un dataset plano, dividiéndolo automáticamente."""
     image_files = []
+    # Buscamos todas las imágenes en el directorio raíz
     for ext in ['*.png', '*.jpg', '*.jpeg']:
         image_files.extend(list(source_dir.glob(ext)))
     
+    # Ordenamos para asegurar reproducibilidad
     image_files = sorted(image_files)
     if not image_files:
         print("   ❌ ERROR: No se encontraron imágenes (jpg/png/jpeg) en el directorio de origen.")
@@ -112,7 +131,9 @@ def process_flat_dataset(source_dir: Path, test_size: float):
     print(f"   - {len(image_files)} imágenes encontradas.")
 
     # 1. División Train/Val/Test
+    # Primero separamos Test del resto
     train_val_files, test_files = train_test_split(image_files, test_size=test_size, random_state=42)
+    # Luego separamos Train de Validation (ajustando el porcentaje relativo)
     val_size_relative = test_size / (1 - test_size)
     train_files, val_files = train_test_split(train_val_files, test_size=val_size_relative, random_state=42)
     
@@ -126,7 +147,7 @@ def process_flat_dataset(source_dir: Path, test_size: float):
 
 def get_label_path(img_path: Path):
     """Busca el archivo de etiqueta correspondiente a una imagen."""
-    # Estrategia 1: Misma carpeta
+    # Estrategia 1: Buscar en la misma carpeta (ej: imagen.png y imagen.txt juntos)
     lbl = img_path.with_suffix('.txt')
     if lbl.exists(): return lbl
     
@@ -144,21 +165,22 @@ def get_label_path(img_path: Path):
 
 def copy_files(file_list: list[Path], split: str):
     """Copia imágenes y sus etiquetas a las carpetas de destino."""
+    # Definimos destinos basados en el split (train, val, test)
     img_dest = Path(f'data/images/{split}')
     lbl_dest = Path(f'data/labels/{split}')
     
     for img_path in file_list:
+        # Buscamos el archivo de texto asociado a la imagen
         lbl_path = get_label_path(img_path)
         
+        # Si existe la etiqueta, copiamos ambos archivos
         if lbl_path and lbl_path.exists():
             shutil.copy(img_path, img_dest)
             shutil.copy(lbl_path, lbl_dest)
         else:
-            # Opcional: Avisar si falta etiqueta
+            # Opcional: Avisar si falta etiqueta (comentado para no saturar la consola)
             # print(f"⚠️ Aviso: No se encontró etiqueta para {img_path.name}")
             pass
-
-
 
 def create_data_yaml(train_path: str, val_path: str, test_path: str):
     """Crea el archivo .yaml requerido por YOLOv8."""
@@ -170,17 +192,19 @@ def create_data_yaml(train_path: str, val_path: str, test_path: str):
     nc = len(names) # Número de clases (en pose es 1, pero aquí se refiere a keypoints)
     kpt_shape = [nc, 3] # [número de keypoints, 3 (x, y, visibilidad)]
 
+    # Estructura del diccionario que YOLO espera
     data = {
-        'path': str(Path.cwd() / 'data'),
-        'train': train_path,
-        'val': val_path,
-        'test': test_path,
-        'nc': 1, # Siempre 1 para la detección de la clase "salmón"
-        'names': ['salmon'],
-        'kpt_shape': kpt_shape,
-        'flip_idx': [] # No usamos flip horizontal, así que lista vacía
+        'path': str(Path.cwd() / 'data'), # Ruta base absoluta
+        'train': train_path,              # Ruta relativa a train
+        'val': val_path,                  # Ruta relativa a val
+        'test': test_path,                # Ruta relativa a test
+        'nc': 1,                          # Siempre 1 para la detección de la clase "salmón"
+        'names': ['salmon'],              # Nombre de la clase
+        'kpt_shape': kpt_shape,           # Forma de los keypoints
+        'flip_idx': []                    # No usamos flip horizontal, así que lista vacía
     }
     
+    # Escribimos el archivo YAML
     with open('data/data.yaml', 'w') as f:
         yaml.dump(data, f, sort_keys=False, default_flow_style=False)
 
@@ -193,11 +217,15 @@ def main(args):
     print("="*80)
 
     # 1. Setup del entorno
+    # Verificamos si hay GPU disponible
     YOLOv8PoseTrainer.check_system_info()
+    # Creamos las carpetas necesarias
     create_directories()
+    # Verificamos que existan los configs
     if not verify_configs():
         return False
     
+    # Intentamos descargar el modelo base
     try:
         ModelDownloader.download_model('yolov8s-pose.pt', verbose=True)
     except Exception as e:
@@ -207,9 +235,11 @@ def main(args):
     # 2. Procesamiento del dataset (si se especificó)
     if args.source_dir:
         source_path = Path(args.source_dir)
+        # Validamos que la ruta de origen exista
         if not source_path.exists() or not source_path.is_dir():
             print(f"\n❌ ERROR: El directorio de origen '{args.source_dir}' no es válido.")
             return False
+        # Ejecutamos el procesamiento
         if not process_dataset(source_path, args.test_size):
             return False
     else:
@@ -226,6 +256,7 @@ def main(args):
     return True
 
 if __name__ == '__main__':
+    # Configuración de argumentos de línea de comandos
     parser = argparse.ArgumentParser(description="Script de Setup para el proyecto de Pose Estimation.")
     parser.add_argument(
         '--source-dir',
@@ -240,12 +271,13 @@ if __name__ == '__main__':
         help='Proporción del dataset a reservar para el conjunto de prueba (ej. 0.2 para 20%).'
     )
     
+    # Parsear argumentos
     args = parser.parse_args()
     
+    # Ejecutar función principal y manejar errores
     try:
         success = main(args)
         sys.exit(0 if success else 1)
     except Exception as e:
         print(f"\n❌ ERROR INESPERADO durante el setup: {e}")
         sys.exit(1)
-

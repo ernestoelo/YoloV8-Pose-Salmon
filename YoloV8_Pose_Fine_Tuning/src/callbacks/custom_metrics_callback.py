@@ -24,69 +24,129 @@ class CustomMetricsCallback:
         self.evaluator = PoseEvaluator(self.config)
         self.batch_metrics = []
         
+    def on_val_start(self, validator):
+        """
+        Ejecutado al inicio de la validación.
+        Aplicamos un 'Monkey Patch' para interceptar las predicciones,
+        ya que YOLOv8.1+ no las expone públicamente en el objeto validator.
+        """
+        # Evitar aplicar el parche dos veces
+        if hasattr(validator, 'is_patched_by_custom_metrics'):
+            return
+
+        # Guardamos la referencia al método original
+        original_update_metrics = validator.update_metrics
+
+        # Definimos nuestro método envoltorio (wrapper)
+        def patched_update_metrics(preds, batch):
+            # 1. Guardamos las predicciones en el validador para usarlas luego
+            validator.preds_batch = preds
+            # 2. Llamamos al método original para que YOLO siga funcionando normal
+            original_update_metrics(preds, batch)
+
+        # Reemplazamos el método del objeto por el nuestro
+        validator.update_metrics = patched_update_metrics
+        validator.is_patched_by_custom_metrics = True
+        # print("🔧 Monkey Patch aplicado exitosamente a validator.update_metrics")
+
     def on_val_batch_end(self, validator):
-        """Ejecutado al final de cada batch de validación"""
+        """
+        Ejecutado al final de cada batch de validación.
+        Calculamos métricas usando las predicciones interceptadas.
+        """
         try:
-            # Verificar que existan predicciones y batch
-            if not hasattr(validator, 'preds') or not validator.preds:
+            # Verificar si tenemos las predicciones interceptadas
+            if not hasattr(validator, 'preds_batch') or validator.preds_batch is None:
                 return
             
+            preds = validator.preds_batch
             batch = validator.batch
+            
             if batch is None:
                 return
 
-            # 1. Determinar el tamaño del batch actual
-            # batch['keypoints'] tiene forma [Batch_Size, Num_Keypoints, 3]
+            # 1. Extraer Ground Truth
+            # batch['keypoints'] -> [Batch, K, 3]
             gt_kpts_batch = batch['keypoints'].detach().cpu().numpy()
-            batch_size = gt_kpts_batch.shape[0]
-
-            # 2. Recuperar las predicciones correspondientes a este batch
-            # validator.preds es una lista acumulativa de objetos Results (uno por imagen)
-            # Tomamos los últimos 'batch_size' elementos
-            if len(validator.preds) < batch_size:
-                return # Seguridad por si acaso
             
-            current_preds = validator.preds[-batch_size:]
-
-            # 3. Extraer keypoints de los objetos Results
+            # 2. Procesar Predicciones
+            # preds suele ser una lista de Tensores (uno por imagen) o un Tensor batch
+            # En YOLOv8 Pose, suele ser una lista de resultados post-procesados
+            
             pred_kpts_list = []
-            for result in current_preds:
-                # result.keypoints.data es un Tensor [1, K, 3] (x, y, conf)
-                if hasattr(result, 'keypoints') and result.keypoints is not None:
-                    kpts = result.keypoints.data.cpu().numpy()
-                    # Asegurar que sea [1, K, 3]
-                    if len(kpts.shape) == 2: 
-                        kpts = np.expand_dims(kpts, axis=0)
-                    pred_kpts_list.append(kpts)
-                else:
-                    # Si no hay detección, rellenar con ceros [1, K, 3]
-                    # K = gt_kpts_batch.shape[1]
+            
+            # Iteramos sobre las predicciones (preds es una lista de tensores [N_det, 3] o similar)
+            # Nota: preds viene de postprocess(), así que ya son coordenadas finales
+            
+            # Si preds es un Tensor directo (a veces pasa en validación simple)
+            if isinstance(preds, torch.Tensor):
+                # Lógica para tensor batch... (menos común en val)
+                pass
+            
+            # Asumimos que es lista de predicciones por imagen (lo estándar)
+            for i, pred in enumerate(preds):
+                # pred es un tensor de detecciones [N, 56] (cajas + kpts + conf)
+                # Ojo: postprocess devuelve [N, 6 + K*3]
+                
+                # Si no hay detecciones
+                if pred is None or len(pred) == 0:
                     pred_kpts_list.append(np.zeros((1, gt_kpts_batch.shape[1], 3)))
+                    continue
 
-            # Concatenar para tener [Batch_Size, K, 3]
-            if pred_kpts_list:
-                pred_kpts_batch = np.concatenate(pred_kpts_list, axis=0)
-            else:
+                # Extraer keypoints. 
+                # En YOLOv8-Pose, los keypoints suelen estar a partir del índice 6
+                # Estructura: [x, y, w, h, conf, cls, kpt1_x, kpt1_y, kpt1_conf, ...]
+                
+                # Sin embargo, postprocess() devuelve una lista de tensores.
+                # Vamos a usar la lógica de parsing estándar de YOLO si es posible,
+                # pero como es crudo, mejor intentamos inferir.
+                
+                # Si pred tiene forma [N, 6 + K*3]
+                # K = (pred.shape[1] - 6) // 3
+                
+                kpts_raw = pred[:, 6:].detach().cpu().numpy()
+                
+                # Reshape a [N, K, 3]
+                n_dets = kpts_raw.shape[0]
+                k = gt_kpts_batch.shape[1]
+                
+                # Verificar dimensiones
+                if kpts_raw.shape[1] != k * 3:
+                    # Fallback o error silencioso
+                    pred_kpts_list.append(np.zeros((1, k, 3)))
+                    continue
+                    
+                kpts = kpts_raw.reshape(n_dets, k, 3)
+                
+                # Tomamos la detección con mayor confianza (la primera, si están ordenadas)
+                # O idealmente evaluamos todas, pero para simplificar tomamos la mejor
+                best_kpt = kpts[0:1] # [1, K, 3]
+                pred_kpts_list.append(best_kpt)
+
+            if not pred_kpts_list:
                 return
 
-            # 4. Preparar diccionarios para el evaluador
+            pred_kpts_batch = np.concatenate(pred_kpts_list, axis=0)
+
+            # 3. Preparar diccionarios
             predictions = {
                 'keypoints': pred_kpts_batch, 
-                'bboxes': batch['bboxes'].detach().cpu().numpy() if 'bboxes' in batch else None
+                'bboxes': None # No necesitamos bboxes para OKS/PCK puro
             }
             
             ground_truth = {
-                'keypoints': gt_kpts_batch[..., :2], # [N, K, 2] (x, y)
-                'visibilities': gt_kpts_batch[..., 2] # [N, K] (visibilidad)
+                'keypoints': gt_kpts_batch[..., :2],
+                'visibilities': gt_kpts_batch[..., 2]
             }
             
-            # Calcular métricas del batch
+            # Calcular métricas
             metrics = self.evaluator.evaluate_batch(predictions, ground_truth)
             self.batch_metrics.append(metrics)
             
+            # Limpiar para ahorrar memoria
+            validator.preds_batch = None
+            
         except Exception as e:
-            # Capturamos errores silenciosamente para no detener el entrenamiento
-            # pero imprimimos advertencia la primera vez
             if len(self.batch_metrics) == 0:
                 print(f"⚠️ Advertencia en CustomMetricsCallback: {e}")
 

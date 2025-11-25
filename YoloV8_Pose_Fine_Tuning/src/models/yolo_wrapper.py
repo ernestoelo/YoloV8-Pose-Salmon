@@ -132,11 +132,11 @@ class YOLOv8PoseTrainer:
             workers=self.config['training']['workers'],
 
             # Loss weights del magíster ⭐
-            box=self.config['training']['loss_weights']['box'],
-            cls=self.config['training']['loss_weights']['cls'],
-            dfl=self.config['training']['loss_weights']['dfl'],
-            pose=self.config['training']['loss_weights']['pose'],
-            kobj=self.config['training']['loss_weights']['kobj'],
+            box=self.config['loss_weights']['box'],
+            cls=self.config['loss_weights']['cls'],
+            dfl=self.config['loss_weights']['dfl'],
+            pose=self.config['loss_weights']['pose'],
+            kobj=self.config['loss_weights']['kobj'],
 
             # Augmentations del magíster ⭐
             hsv_h=self.config['augmentation']['hsv_h'],

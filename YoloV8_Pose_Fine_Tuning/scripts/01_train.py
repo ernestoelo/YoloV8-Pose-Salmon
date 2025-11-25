@@ -36,6 +36,7 @@ def main():
         print("\n3️⃣  Registrando Callbacks...")
         callback = CustomMetricsCallback('config/keypoints_config.yaml')
         trainer.register_callbacks([
+            ("on_val_start", callback.on_val_start), # ← NUEVO: Para aplicar el parche
             ("on_val_batch_end", callback.on_val_batch_end),
             ("on_val_end", callback.on_val_end),
             ("on_train_end", callback.on_train_end)
