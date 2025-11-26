@@ -1,9 +1,0 @@
-# data.yaml
-train: salmon_segmentation_dataset/images/train
-val: salmon_segmentation_dataset/images/val
-
-# Número de clases
-nc: 1
-
-# Nombres de las clases
-names: ['salmon']
