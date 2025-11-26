@@ -46,3 +46,8 @@ runs/
 # Mac
 .DS_Store
 client.ovpn
+
+# Allow images
+!*.png
+!*.jpg
+!*.jpeg
