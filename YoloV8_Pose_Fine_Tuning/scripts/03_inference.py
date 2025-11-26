@@ -15,9 +15,11 @@ from src.utils.download_utils import ModelDownloader
 
 def main():
     parser = argparse.ArgumentParser(description='Inferencia YOLOv8-Pose')
-    parser.add_argument('--image', type=str, help='Ruta a la imagen')
+    parser.add_argument('--image', type=str, 
+                       default='data/images/val/2024_07_30_13_41_46_frame_000100.png',
+                       help='Ruta a la imagen')
     parser.add_argument('--model', type=str, 
-                       default='outputs/runs/salmon_pose_v1/weights/best.pt',
+                       default=None, # Se buscará automáticamente si es None
                        help='Ruta al modelo entrenado')
     parser.add_argument('--conf', type=float, default=0.5,
                        help='Confianza mínima')
@@ -33,13 +35,29 @@ def main():
     try:
         # 1️⃣ Cargar modelo entrenado
         print("\n1️⃣  Cargando Modelo...")
-        if not Path(args.model).exists():
-            print(f"❌ Modelo no encontrado: {args.model}")
+        
+        model_path = args.model
+        if model_path is None:
+            # Búsqueda automática del modelo más reciente
+            project_dir = Path('outputs/runs')
+            if project_dir.exists():
+                run_dirs = [d for d in project_dir.iterdir() if d.is_dir() and d.name.startswith('salmon_pose_v')]
+                if run_dirs:
+                    latest_run_dir = max(run_dirs, key=lambda p: p.stat().st_mtime)
+                    model_path = str(latest_run_dir / 'weights/best.pt')
+                    print(f"   ℹ️  Modelo detectado automáticamente: {model_path}")
+                else:
+                    model_path = 'outputs/runs/salmon_pose_v1/weights/best.pt'
+            else:
+                model_path = 'outputs/runs/salmon_pose_v1/weights/best.pt'
+        
+        if not Path(model_path).exists():
+            print(f"❌ Modelo no encontrado: {model_path}")
             print("   Asegúrese de haber entrenado el modelo o especifique la ruta correcta con --model")
             return
 
-        model = YOLO(args.model)
-        print(f"   ✅ Modelo cargado: {args.model}")
+        model = YOLO(model_path)
+        print(f"   ✅ Modelo cargado: {model_path}")
 
         # 2️⃣ Cargar imagen
         print("\n2️⃣  Cargando Imagen...")

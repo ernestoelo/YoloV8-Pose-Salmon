@@ -34,14 +34,14 @@ ENV/
 # Project Specific
 # Ignoramos la carpeta data/ porque se genera automáticamente con el setup
 # y contiene rutas absolutas específicas de cada computador.
-data/
+# data/
 
 # Ignoramos outputs de entrenamiento para no llenar el repo
-outputs/
-runs/
+# outputs/
+# runs/
 
 # Ignoramos el modelo descargado (se descarga solo con el setup)
-*.pt
+# *.pt
 
 # Mac
 .DS_Store
