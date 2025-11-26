@@ -23,21 +23,19 @@ class CustomMetricsCallback:
         
         self.evaluator = PoseEvaluator(self.config)
         self.batch_metrics = []
-        self.debug_done = False
         
     def on_val_start(self, validator):
         """
         Ejecutado al inicio de la validación.
         Aplicamos un 'Monkey Patch' para interceptar las predicciones.
         """
-        self.debug_done = False # Reset debug flag for new validation epoch
-        
         # Evitar aplicar el parche dos veces
         if hasattr(validator, 'is_patched_by_custom_metrics'):
             return
 
         # Guardamos la referencia al método original
         original_update_metrics = validator.update_metrics
+        print("🔧 CustomMetricsCallback: Monkey Patch aplicado a validator.update_metrics")
 
         # Definimos nuestro método envoltorio (wrapper)
         def patched_update_metrics(preds, batch):
@@ -46,6 +44,8 @@ class CustomMetricsCallback:
             if preds is not None:
                 validator.preds_batch = preds
                 validator.batch = batch
+            else:
+                print("⚠️ CustomMetricsCallback: preds es None en patched_update_metrics")
             
             # 2. Llamamos al método original para que YOLO siga funcionando normal
             original_update_metrics(preds, batch)
@@ -59,6 +59,7 @@ class CustomMetricsCallback:
         Ejecutado al final de cada batch de validación.
         Calculamos métricas usando las predicciones interceptadas.
         """
+        # print(f"DEBUG: on_val_batch_end called. Validator: {id(validator)}")
         try:
             # Verificar si tenemos las predicciones interceptadas
             if not hasattr(validator, 'preds_batch') or validator.preds_batch is None:
@@ -66,16 +67,20 @@ class CustomMetricsCallback:
                 if hasattr(validator, 'preds'):
                     validator.preds_batch = validator.preds
                 else:
+                    print("⚠️ CustomMetricsCallback: No se encontraron predicciones (preds_batch/preds)")
+                    print(f"   Validator keys: {validator.__dict__.keys()}")
                     return
             
             preds = validator.preds_batch
             batch = getattr(validator, 'batch', None)
             
             if batch is None:
+                print("⚠️ CustomMetricsCallback: batch es None")
                 return
 
             # 1. Extraer Ground Truth y Batch Index
             if 'keypoints' not in batch:
+                print("⚠️ CustomMetricsCallback: 'keypoints' no está en batch")
                 return
             
             # batch['keypoints'] -> [N_total_instances, K, 3]
@@ -86,6 +91,22 @@ class CustomMetricsCallback:
 
             if isinstance(gt_kpts_all, torch.Tensor):
                 gt_kpts_all = gt_kpts_all.detach().cpu().numpy()
+            
+            # --- FIX: Denormalize GT keypoints if they are normalized ---
+            # Check if coordinates are normalized (<= 1.0)
+            # Note: Visibility (index 2) is usually 0, 1, 2, so we check indices 0 and 1.
+            if gt_kpts_all[..., :2].max() <= 1.0:
+                # Try to get image size from batch['ori_shape'] or batch['resized_shape']
+                # But batch usually contains 'img' which is the resized image tensor [B, 3, H, W]
+                if 'img' in batch:
+                    _, _, h, w = batch['img'].shape
+                    gt_kpts_all[..., 0] *= w
+                    gt_kpts_all[..., 1] *= h
+                else:
+                    # Fallback to 960 if img not found (based on config)
+                    gt_kpts_all[..., 0] *= 960
+                    gt_kpts_all[..., 1] *= 960
+            # ------------------------------------------------------------
                 
             # batch['batch_idx'] -> [N_total_instances]
             if 'batch_idx' in batch:
@@ -99,18 +120,23 @@ class CustomMetricsCallback:
             aligned_preds = []
             aligned_gts = []
             
+            # print(f"DEBUG: preds type: {type(preds)}")
+            
             # Si preds es una lista (formato usual)
             if isinstance(preds, list):
+                # print(f"DEBUG: preds list length: {len(preds)}")
                 for img_i, pred in enumerate(preds):
                     # --- A. Obtener GT para esta imagen ---
                     mask = (batch_idx == img_i)
                     gt_instances = gt_kpts_all[mask] # [M, K, 3]
                     
                     if len(gt_instances) == 0:
+                        # print(f"DEBUG: No GT for img {img_i}")
                         continue 
                     
                     # --- B. Obtener Predicción para esta imagen ---
                     if pred is None:
+                        print(f"DEBUG: pred is None for img {img_i}")
                         continue
 
                     pred_instances = None
@@ -122,6 +148,23 @@ class CustomMetricsCallback:
                             kpts_data = kpts_data.detach().cpu().numpy()
                         if len(kpts_data) > 0:
                             pred_instances = kpts_data
+                        else:
+                             # print(f"DEBUG: pred.keypoints.data empty for img {img_i}")
+                             pass
+
+                    # Caso 1.5: Diccionario (Fix para este entorno)
+                    elif isinstance(pred, dict) and 'keypoints' in pred:
+                        kpts_data = pred['keypoints']
+                        if isinstance(kpts_data, torch.Tensor):
+                            kpts_data = kpts_data.detach().cpu().numpy()
+                        
+                        # Si tiene forma [N, K*3] o similar, asegurar [N, K, 3]
+                        # En este caso parece que ya viene bien o como tensor
+                        if len(kpts_data) > 0:
+                            pred_instances = kpts_data
+                        else:
+                             # print(f"DEBUG: pred['keypoints'] empty for img {img_i}")
+                             pass
 
                     # Caso 2: Tensor o Numpy array
                     elif isinstance(pred, (torch.Tensor, np.ndarray)):
@@ -137,6 +180,7 @@ class CustomMetricsCallback:
                             except: pass
                     
                     if pred_instances is None:
+                        # print(f"DEBUG: No pred_instances extracted for img {img_i}. Type: {type(pred)}")
                         continue
 
                     # --- C. Matching (Emparejamiento) ---
@@ -149,6 +193,7 @@ class CustomMetricsCallback:
                     aligned_gts.append(best_gt)
 
             if not aligned_preds:
+                print("DEBUG: aligned_preds is empty")
                 return
 
             # Convertir a arrays
@@ -185,7 +230,9 @@ class CustomMetricsCallback:
             validator.preds_batch = None
             
         except Exception as e:
-            # Silenciar errores para no interrumpir entrenamiento
+            print(f"❌ Error en CustomMetricsCallback: {e}")
+            import traceback
+            traceback.print_exc()
             pass
 
     def on_val_end(self, validator):
