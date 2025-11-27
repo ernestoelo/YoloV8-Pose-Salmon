@@ -51,3 +51,7 @@ client.ovpn
 !*.png
 !*.jpg
 !*.jpeg
+
+# Asegurar que la carpeta weights y los modelos .pt sean rastreados
+!**/weights/
+!*.pt
