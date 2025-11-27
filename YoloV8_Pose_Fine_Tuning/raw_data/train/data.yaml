@@ -1,7 +1,0 @@
-Train: Train.txt
-kpt_shape:
-- 11
-- 3
-names:
-  0: salmon
-path: .
