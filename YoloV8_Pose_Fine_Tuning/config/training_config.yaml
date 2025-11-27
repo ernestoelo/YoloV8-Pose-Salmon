@@ -20,9 +20,9 @@ model:
 # CONFIGURACIÓN DEL ENTRENAMIENTO
 # ================================================================================
 training:
-  epochs: 5                       # Número total de iteraciones sobre el dataset (MODO PRUEBA)
+  epochs: 3000                     # Número total de iteraciones sobre el dataset
   batch_size: -1                  # -1 = autodetectar según VRAM disponible
-  patience: 500                   # Early stopping si no hay mejora en 500 épocas
+  patience: 50                    # Early stopping si no hay mejora en 50 épocas
   device: 0                       # GPU 0 (cambiar si tienes múltiples GPUs)
   workers: 8                      # Threads para carga de datos (8 es un buen default)
 
